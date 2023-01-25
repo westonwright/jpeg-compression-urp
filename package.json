@@ -1,0 +1,19 @@
+{
+  "name": "com.weston-wright.post-processing-urp",
+  "description": "Various Post-Processing effects using renderer features for URp",
+  "version": "1.0.0",
+  "unity": "2021.3",
+  "unityRelease": "3f1",
+  "displayName": "URP Post-Processing",
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "12.0.0"
+  },
+  "keywords": [
+    "post-processing",
+    "vfx",
+    "screen",
+    "video"
+  ],
+  "type": "sample",
+  "hideInEditor": false
+}
