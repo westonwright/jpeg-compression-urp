@@ -2,112 +2,62 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-class SharpenRenderFeature : ScriptableRendererFeature
+class InvertRendererFeature : ScriptableRendererFeature
 {
-    #region Constant properties
-    #endregion
-
     #region Public properties and methods
-    [SerializeField, Range(0, 10)]
-    float _amount = 1f;
-    public float amount
-    {
-        get { return _amount; }
-        set { _amount = value; }
-    }
-
     [SerializeField, Range(0, 1)]
-    float _threshold = 0;
-    public float threshold
+    float _invertStrength = 1;
+    public float invertStrength
     {
-        get { return _threshold; }
-        set { _threshold = value; }
-    }
-
-    [SerializeField, Range(0, 1)]
-    float _thresholdRange = .1f;
-    public float thresholdRange
-    {
-        get { return _thresholdRange; }
-        set { _thresholdRange = value; }
-    }
-
-    [SerializeField, Range(2, 12)]
-    int _diameter = 2;
-    public int diameter
-    {
-        get { return _diameter; }
-        set { _diameter = value; }
-    }
-
-
-    [SerializeField, Range(.01f, 10)]
-    float _detail = 2;
-    public float detail
-    {
-        get { return _detail; }
-        set { _detail = value; }
+        get { return _invertStrength; }
+        set { _invertStrength = value; }
     }
     #endregion
 
     #region Private properties
-
     [SerializeField]
-    string _profilerTag = "Sharpen Renderer Feature";
+    string _profilerTag = "Invert Renderer Feature";
 
     [SerializeField]
     private CameraType _visibleFrom = CameraType.SceneView | CameraType.Game;
 
     [SerializeField]
-    RenderPassEvent _renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
+    private RenderPassEvent _renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 
     [SerializeField]
     private Shader _shader;
 
     private Material _material;
 
-    private SharpenPass _renderPass = null;
+    private InvertPass _renderPass = null;
 
     private bool _initialized = false;
-
     #endregion
 
-    class SharpenPass : ScriptableRenderPass
+    class InvertPass : ScriptableRenderPass
     {
         // used to label this pass in Unity's Frame Debug utility
-        private string profilerTag;
+        string profilerTag;
 
-        private Material material;
-        private float amount;
-        private float threshold;
-        private float thresholdRange;
-        private int diameter;
-        private float detail;
+        Material material;
+        float invertStrength;
 
         RenderTargetIdentifier cameraColorTarget;
 
         int tempTextureID;
         RenderTargetIdentifier tempTexture;
 
-        public SharpenPass(
+        public InvertPass(
             string profilerTag,
             RenderPassEvent renderPassEvent,
             Material material,
-            float amount,
-            float threshold,
-            float thresholdRange,
-            int diameter,
-            float detail
+            float invertStrength
             )
         {
             this.profilerTag = profilerTag;
             this.renderPassEvent = renderPassEvent;
             this.material = material;
-            this.amount = amount;
-            this.threshold = threshold;
-            this.thresholdRange = thresholdRange;
-            this.diameter = diameter;
-            this.detail = detail;
+            this.invertStrength = invertStrength;
 
             tempTextureID = Shader.PropertyToID("_TempTexture");
         }
@@ -131,11 +81,7 @@ class SharpenRenderFeature : ScriptableRendererFeature
             CommandBuffer cmd = CommandBufferPool.Get(profilerTag);
             cmd.Clear();
 
-            material.SetFloat("_Amount", amount);
-            material.SetFloat("_Threshold", threshold);
-            material.SetFloat("_ThresholdRange", thresholdRange);
-            material.SetInt("_Diameter", diameter);
-            material.SetFloat("_Detail", detail);
+            material.SetFloat("_InvertStrength", invertStrength);
 
             // where the render pass does its work
             cmd.Blit(cameraColorTarget, tempTexture, material, 0);
@@ -158,6 +104,7 @@ class SharpenRenderFeature : ScriptableRendererFeature
         }
     }
 
+
     public override void Create()
     {
         _initialized = false;
@@ -165,15 +112,11 @@ class SharpenRenderFeature : ScriptableRendererFeature
 
         if (!RendererFeatureFunctions.ValidUniversalPipeline(GraphicsSettings.defaultRenderPipeline, true, false)) return;
 
-        _renderPass = new SharpenPass(
+        _renderPass = new InvertPass(
             _profilerTag,
             _renderPassEvent,
             _material,
-            _amount,
-            _threshold,
-            _thresholdRange,
-            _diameter,
-            _detail);
+            _invertStrength);
 
         _initialized = true;
     }
@@ -189,12 +132,14 @@ class SharpenRenderFeature : ScriptableRendererFeature
         if (!_initialized) return;
 
         if (((int)_visibleFrom & (int)renderingData.cameraData.cameraType) == 0) return;
+
         renderer.EnqueuePass(_renderPass);
     }
-
 
     protected override void Dispose(bool disposing)
     {
         RendererFeatureFunctions.DisposeMaterial(ref _material);
     }
 }
+
+

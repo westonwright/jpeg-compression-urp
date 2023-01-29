@@ -2,62 +2,112 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
-class CompressionRenderFeature : ScriptableRendererFeature
+class SharpenRendererFeature : ScriptableRendererFeature
 {
+    #region Constant properties
+    #endregion
+
     #region Public properties and methods
-    [SerializeField, Range(1, 32)]
-    int _chromaSubsampleRatio = 2;
-    public int chromaSubsampleRatio
+    [SerializeField, Range(0, 10)]
+    float _amount = 1f;
+    public float amount
     {
-        get { return _chromaSubsampleRatio; }
-        set { _chromaSubsampleRatio = value; }
+        get { return _amount; }
+        set { _amount = value; }
+    }
+
+    [SerializeField, Range(0, 1)]
+    float _threshold = 0;
+    public float threshold
+    {
+        get { return _threshold; }
+        set { _threshold = value; }
+    }
+
+    [SerializeField, Range(0, 1)]
+    float _thresholdRange = .1f;
+    public float thresholdRange
+    {
+        get { return _thresholdRange; }
+        set { _thresholdRange = value; }
+    }
+
+    [SerializeField, Range(2, 12)]
+    int _diameter = 2;
+    public int diameter
+    {
+        get { return _diameter; }
+        set { _diameter = value; }
+    }
+
+
+    [SerializeField, Range(.01f, 10)]
+    float _detail = 2;
+    public float detail
+    {
+        get { return _detail; }
+        set { _detail = value; }
     }
     #endregion
 
     #region Private properties
+
     [SerializeField]
-    string _profilerTag = "Compression Renderer Feature";
+    string _profilerTag = "Sharpen Renderer Feature";
 
     [SerializeField]
     private CameraType _visibleFrom = CameraType.SceneView | CameraType.Game;
 
     [SerializeField]
-    private RenderPassEvent _renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
+    RenderPassEvent _renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 
     [SerializeField]
     private Shader _shader;
 
     private Material _material;
 
-    private CompressionPass _renderPass = null;
+    private SharpenPass _renderPass = null;
 
     private bool _initialized = false;
+
     #endregion
 
-    class CompressionPass : ScriptableRenderPass
+    class SharpenPass : ScriptableRenderPass
     {
         // used to label this pass in Unity's Frame Debug utility
-        string profilerTag;
+        private string profilerTag;
 
-        Material material;
-        int chromaSubsampleRatio;
+        private Material material;
+        private float amount;
+        private float threshold;
+        private float thresholdRange;
+        private int diameter;
+        private float detail;
 
         RenderTargetIdentifier cameraColorTarget;
 
         int tempTextureID;
         RenderTargetIdentifier tempTexture;
 
-        public CompressionPass(
+        public SharpenPass(
             string profilerTag,
             RenderPassEvent renderPassEvent,
             Material material,
-            int chromaSubsampleRatio
+            float amount,
+            float threshold,
+            float thresholdRange,
+            int diameter,
+            float detail
             )
         {
             this.profilerTag = profilerTag;
             this.renderPassEvent = renderPassEvent;
             this.material = material;
-            this.chromaSubsampleRatio = chromaSubsampleRatio;
+            this.amount = amount;
+            this.threshold = threshold;
+            this.thresholdRange = thresholdRange;
+            this.diameter = diameter;
+            this.detail = detail;
 
             tempTextureID = Shader.PropertyToID("_TempTexture");
         }
@@ -81,7 +131,11 @@ class CompressionRenderFeature : ScriptableRendererFeature
             CommandBuffer cmd = CommandBufferPool.Get(profilerTag);
             cmd.Clear();
 
-            material.SetFloat("_SubsampleRatio", chromaSubsampleRatio);
+            material.SetFloat("_Amount", amount);
+            material.SetFloat("_Threshold", threshold);
+            material.SetFloat("_ThresholdRange", thresholdRange);
+            material.SetInt("_Diameter", diameter);
+            material.SetFloat("_Detail", detail);
 
             // where the render pass does its work
             cmd.Blit(cameraColorTarget, tempTexture, material, 0);
@@ -104,7 +158,6 @@ class CompressionRenderFeature : ScriptableRendererFeature
         }
     }
 
-
     public override void Create()
     {
         _initialized = false;
@@ -112,11 +165,15 @@ class CompressionRenderFeature : ScriptableRendererFeature
 
         if (!RendererFeatureFunctions.ValidUniversalPipeline(GraphicsSettings.defaultRenderPipeline, true, false)) return;
 
-        _renderPass = new CompressionPass(
+        _renderPass = new SharpenPass(
             _profilerTag,
             _renderPassEvent,
             _material,
-            _chromaSubsampleRatio);
+            _amount,
+            _threshold,
+            _thresholdRange,
+            _diameter,
+            _detail);
 
         _initialized = true;
     }
@@ -132,14 +189,12 @@ class CompressionRenderFeature : ScriptableRendererFeature
         if (!_initialized) return;
 
         if (((int)_visibleFrom & (int)renderingData.cameraData.cameraType) == 0) return;
-
         renderer.EnqueuePass(_renderPass);
     }
+
 
     protected override void Dispose(bool disposing)
     {
         RendererFeatureFunctions.DisposeMaterial(ref _material);
     }
 }
-
-

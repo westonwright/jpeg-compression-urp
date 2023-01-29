@@ -1,7 +1,7 @@
 {
   "name": "com.weston-wright.post-processing-urp",
   "description": "Various Post-Processing effects using renderer features for URp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "unity": "2021.3",
   "unityRelease": "3f1",
   "displayName": "URP Post-Processing",

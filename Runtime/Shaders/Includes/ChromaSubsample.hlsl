@@ -17,15 +17,18 @@ float3 YCbCr2RGB(float3 YCbCr)
 }
 
 //will probably run in to issues if texture isn't a perfect square. Might change that
-void ChromaSubsampling_float(float4 ScreenPos, float2 ScreenDimensions, int SubsampleRatio, UnityTexture2D SourceTexture, UnitySamplerState SS, out float4 Out)
+void ChromaSubsampling_float(float4 ScreenPos, float2 ScreenDimensions, uint SubsampleRatio, UnityTexture2D SourceTexture, UnitySamplerState SS, out float4 Out)
 {
-	int2 pixelPos = int2(round(ScreenPos.x * ScreenDimensions.x), round(ScreenPos.y * ScreenDimensions.y));
+	uint2 pixelPos = int2(round(ScreenPos.x * ScreenDimensions.x), round(ScreenPos.y * ScreenDimensions.y));
 	float2 subsamplePos = float2(pixelPos.x - (pixelPos.x % SubsampleRatio), pixelPos.y - (pixelPos.y % SubsampleRatio));
 	subsamplePos = float2(subsamplePos.x / ScreenDimensions.x, subsamplePos.y / ScreenDimensions.y);
 
 	float3 first = RGB2YCbCr(
 		SAMPLE_TEXTURE2D(SourceTexture, SS, ScreenPos).xyz,
-		SAMPLE_TEXTURE2D(SourceTexture, SS, float4(subsamplePos.x, subsamplePos.y, ScreenPos.zw)).xyz);
+		// currently just takes bottom right color of block.
+		// could instead take center pixel value or average value of block
+		SAMPLE_TEXTURE2D(SourceTexture, SS, float4(subsamplePos.x, subsamplePos.y, ScreenPos.zw)).xyz
+	);
 	float3 last = YCbCr2RGB(first);
 	//Out = float4(first.xyz, 1);
 	Out = float4(last.xyz, 1);

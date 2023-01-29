@@ -1,0 +1,278 @@
+// from: https://www.nayuki.io/res/fast-discrete-cosine-transform-algorithms/FastDct8.cs
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CenterValues
+#pragma kernel DecenterValues
+#pragma kernel CDT_Horizontal
+#pragma kernel CDT_Vertical
+#pragma kernel ICDT_Horizontal
+#pragma kernel ICDT_Vertical
+#pragma kernel Quantize
+
+
+static const uint THREADS = 1024;
+static const uint SQRT_THREADS = 32;
+static const uint BLOCK_SIZE = 8;
+
+static const float S[8] =
+{
+    0.353553390593274,
+    0.25489778955208,
+    0.270598050073099,
+    0.300672443467523,
+    0.353553390593274,
+    0.449988111568208,
+    0.653281482438188,
+    1.28145772387075
+};
+
+static const float A[6] =
+{
+    0,
+    0.707106781186548,
+    0.541196100146197,
+    0.707106781186548,
+    1.30656296487638,
+    0.38268343236509,
+};
+
+/* 
+Computes the scaled DCT type II on the specified length-8 array in place.
+The inverse of this function is InverseTransform(), except for rounding errors.
+*/
+void Transform(float inVec[8], out float outVec[8])
+{
+    // Algorithm by Arai, Agui, Nakajima, 1988. For details, see:
+    // https://web.stanford.edu/class/ee398a/handouts/lectures/07-TransformCoding.pdf#page=30
+    float v0 = inVec[0] + inVec[7];
+    float v1 = inVec[1] + inVec[6];
+    float v2 = inVec[2] + inVec[5];
+    float v3 = inVec[3] + inVec[4];
+    float v4 = inVec[3] - inVec[4];
+    float v5 = inVec[2] - inVec[5];
+    float v6 = inVec[1] - inVec[6];
+    float v7 = inVec[0] - inVec[7];
+		
+    float v8 = v0 + v3;
+    float v9 = v1 + v2;
+    float v10 = v1 - v2;
+    float v11 = v0 - v3;
+    float v12 = -v4 - v5;
+    float v13 = (v5 + v6) * A[3];
+    float v14 = v6 + v7;
+		
+    float v15 = v8 + v9;
+    float v16 = v8 - v9;
+    float v17 = (v10 + v11) * A[1];
+    float v18 = (v12 + v14) * A[5];
+		
+    float v19 = -v12 * A[2] - v18;
+    float v20 = v14 * A[4] - v18;
+		
+    float v21 = v17 + v11;
+    float v22 = v11 - v17;
+    float v23 = v13 + v7;
+    float v24 = v7 - v13;
+		
+    float v25 = v19 + v24;
+    float v26 = v23 + v20;
+    float v27 = v23 - v20;
+    float v28 = v24 - v19;
+		
+    outVec[0] = S[0] * v15;
+    outVec[1] = S[1] * v26;
+    outVec[2] = S[2] * v21;
+    outVec[3] = S[3] * v28;
+    outVec[4] = S[4] * v16;
+    outVec[5] = S[5] * v25;
+    outVec[6] = S[6] * v22;
+    outVec[7] = S[7] * v27;
+}
+
+/* 
+Computes the scaled DCT type III on the specified length-8 array in place.
+The inverse of this function is Transform(), except for rounding errors.
+*/
+void InverseTransform(float inVec[8], out float outVec[8])
+{
+		// A straightforward inverse of the forward algorithm
+    float v15 = inVec[0] / S[0];
+    float v26 = inVec[1] / S[1];
+    float v21 = inVec[2] / S[2];
+    float v28 = inVec[3] / S[3];
+    float v16 = inVec[4] / S[4];
+    float v25 = inVec[5] / S[5];
+    float v22 = inVec[6] / S[6];
+    float v27 = inVec[7] / S[7];
+		
+    float v19 = (v25 - v28) / 2;
+    float v20 = (v26 - v27) / 2;
+    float v23 = (v26 + v27) / 2;
+    float v24 = (v25 + v28) / 2;
+		
+    float v7 = (v23 + v24) / 2;
+    float v11 = (v21 + v22) / 2;
+    float v13 = (v23 - v24) / 2;
+    float v17 = (v21 - v22) / 2;
+		
+    float v8 = (v15 + v16) / 2;
+    float v9 = (v15 - v16) / 2;
+		
+    float v18 = (v19 - v20) * A[5]; // Different from original
+    float v12 = (v19 * A[4] - v18) / (A[2] * A[5] - A[2] * A[4] - A[4] * A[5]);
+    float v14 = (v18 - v20 * A[2]) / (A[2] * A[5] - A[2] * A[4] - A[4] * A[5]);
+		
+    float v6 = v14 - v7;
+    float v5 = v13 / A[3] - v6;
+    float v4 = -v5 - v12;
+    float v10 = v17 / A[1] - v11;
+		
+    float v0 = (v8 + v11) / 2;
+    float v1 = (v9 + v10) / 2;
+    float v2 = (v9 - v10) / 2;
+    float v3 = (v8 - v11) / 2;
+		
+    outVec[0] = (v0 + v7) / 2;
+    outVec[1] = (v1 + v6) / 2;
+    outVec[2] = (v2 + v5) / 2;
+    outVec[3] = (v3 + v4) / 2;
+    outVec[4] = (v3 - v4) / 2;
+    outVec[5] = (v2 - v5) / 2;
+    outVec[6] = (v1 - v6) / 2;
+    outVec[7] = (v0 - v7) / 2;
+}
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float> _TransformTex;
+
+uint2 _textureSize;
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void CenterValues(uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
+        return;
+    
+    //_TransformTex[id.xy] = _TransformTex[id.xy] - 0.5f;
+    _TransformTex[id.xy] = (_TransformTex[id.xy] * 255.0f) -128.0f;
+}
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void DecenterValues(uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
+        return;
+    
+    //_TransformTex[id.xy] = _TransformTex[id.xy] + 0.5f;
+    _TransformTex[id.xy] = (_TransformTex[id.xy] + 128.0f) / 255.0f;
+}
+
+uint2 _numBlocks;
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void CDT_Horizontal (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _numBlocks.x || id.y >= _textureSize.y)
+        return;
+    
+    float inVec[BLOCK_SIZE];
+    
+    for (uint i = 0; i < BLOCK_SIZE; i++)
+    {
+        inVec[i] = _TransformTex[uint2((id.x * BLOCK_SIZE) + i, id.y)];
+    }
+    
+    float outVec[BLOCK_SIZE];
+    Transform(inVec, outVec);
+
+    for (uint j = 0; j < BLOCK_SIZE; j++)
+    {
+        _TransformTex[uint2((id.x * BLOCK_SIZE) + j, id.y)] = outVec[j];
+    }
+}
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void CDT_Vertical (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _textureSize.x || id.y >= _numBlocks.y)
+        return;
+    
+    float inVec[BLOCK_SIZE];
+    
+    for (uint i = 0; i < BLOCK_SIZE; i++)
+    {
+        inVec[i] = _TransformTex[uint2(id.x, (id.y * BLOCK_SIZE) + i)];
+    }
+    
+    float outVec[BLOCK_SIZE];
+    Transform(inVec, outVec);
+
+    for (uint j = 0; j < BLOCK_SIZE; j++)
+    {
+        _TransformTex[uint2(id.x, (id.y * BLOCK_SIZE) + j)] = outVec[j];
+    }
+}
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void ICDT_Horizontal (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _numBlocks.x || id.y >= _textureSize.y)
+        return;
+    
+    float inVec[BLOCK_SIZE];
+    
+    for (uint i = 0; i < BLOCK_SIZE; i++)
+    {
+        inVec[i] = _TransformTex[uint2((id.x * BLOCK_SIZE) + i, id.y)];
+    }
+    
+    float outVec[BLOCK_SIZE];
+    InverseTransform(inVec, outVec);
+
+    for (uint j = 0; j < BLOCK_SIZE; j++)
+    {
+        _TransformTex[uint2((id.x * BLOCK_SIZE) + j, id.y)] = outVec[j];
+    }
+}
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void ICDT_Vertical (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _textureSize.x || id.y >= _numBlocks.y)
+        return;
+    
+    float inVec[BLOCK_SIZE];
+    
+    for (uint i = 0; i < BLOCK_SIZE; i++)
+    {
+        inVec[i] = _TransformTex[uint2(id.x, (id.y * BLOCK_SIZE) + i)];
+    }
+    
+    float outVec[BLOCK_SIZE];
+    InverseTransform(inVec, outVec);
+
+    for (uint j = 0; j < BLOCK_SIZE; j++)
+    {
+        _TransformTex[uint2(id.x, (id.y * BLOCK_SIZE) + j)] = outVec[j];
+    }
+}
+
+Buffer<int> _QuantizationTable;
+float _QualityFactor;
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void Quantize(uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
+        return;
+    
+    uint2 position = id.xy % BLOCK_SIZE;
+    //float quantizationValue = lumaTable[position.x + (position.y * BLOCK_SIZE)];
+    float quantizationValue = _QuantizationTable[position.x + (position.y * BLOCK_SIZE)];
+    
+    quantizationValue = max(round(quantizationValue * _QualityFactor), 1);
+    float outVal = _TransformTex[id.xy] / quantizationValue;
+    outVal = round(outVal);
+    outVal *= quantizationValue;
+    _TransformTex[id.xy] = outVal;
+}

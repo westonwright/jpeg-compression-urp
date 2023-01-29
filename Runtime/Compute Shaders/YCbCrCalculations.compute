@@ -1,0 +1,84 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ToYCbCr
+#pragma kernel ToRGB
+
+static const uint THREADS = 1024;
+static const uint SQRT_THREADS = 32;
+
+float RGB2Y(float3 RGB)
+{
+    float Y = RGB.x * 0.29900f + RGB.y * 0.58700f + RGB.z * 0.11400f;
+    
+    return Y;
+}
+
+float2 RGB2CbCR(float3 RGB)
+{
+    float Cb = RGB.x * -0.16874f + RGB.y * -0.33126f + RGB.z * 0.50000f + .5f;
+    float Cr = RGB.x * 0.50000f + RGB.y * -0.41869f + RGB.z * -0.08131f + .5f;
+    
+    return float2(Cb, Cr);
+}
+
+float3 YCbCr2RGB(float Y, float Cb, float Cr)
+{
+    float R = Y + (Cr - .5f) * 1.40200f;
+    float G = Y + (Cb - .5f) * -0.34414f + (Cr - .5f) * -0.71414f;
+    float B = Y + (Cb - .5f) * 1.77200f;
+
+    return float3(R, G, B);
+}
+
+RWTexture2D<float3> _RBGTex;
+RWTexture2D<float> _YTex;
+RWTexture2D<float> _CbTex;
+RWTexture2D<float> _CrTex;
+
+uint2 _DownsampleTexSize;
+
+uint _CbCrSubsample;
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void ToYCbCr (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _DownsampleTexSize.x || id.y >= _DownsampleTexSize.y)
+        return;
+    
+    for (uint x = 0; x < _CbCrSubsample; x++)
+    {
+        for (uint y = 0; y < _CbCrSubsample; y++)
+        {
+            float YVal = RGB2Y(
+                _RBGTex[(id.xy * _CbCrSubsample) + uint2(x, y)]
+            );
+            _YTex[(id.xy * _CbCrSubsample) + uint2(x, y)] = YVal;
+        }
+    }
+    float2 CbCrVal = RGB2CbCR(
+        _RBGTex[(id.xy * _CbCrSubsample)]
+    );
+    _CbTex[id.xy] = CbCrVal.x;
+    _CrTex[id.xy] = CbCrVal.y;
+}
+
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void ToRGB (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _DownsampleTexSize.x || id.y >= _DownsampleTexSize.y)
+        return;
+    
+    for (uint x = 0; x < _CbCrSubsample; x++)
+    {
+        for (uint y = 0; y < _CbCrSubsample; y++)
+        {
+            float3 RGBVal = YCbCr2RGB(
+                _YTex[(id.xy * _CbCrSubsample) + uint2(x, y)],
+                _CbTex[id.xy],
+                _CrTex[id.xy]
+            );
+            
+            _RBGTex[(id.xy * _CbCrSubsample) + uint2(x, y)] = RGBVal;
+        }
+    }
+
+}
