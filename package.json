@@ -6,7 +6,7 @@
   "unityRelease": "3f1",
   "displayName": "JPEG Compression URP",
   "dependencies": {
-    "com.unity.render-pipelines.universal": "12.0.0"
+    "com.unity.render-pipelines.universal": "12.0.0",
     "com.weston-wright.scriptable-renderer-helpers-urp": "1.0.0"
   },
   "keywords": [
