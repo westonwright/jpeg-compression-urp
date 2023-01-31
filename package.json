@@ -7,7 +7,7 @@
   "displayName": "JPEG Compression URP",
   "dependencies": {
     "com.unity.render-pipelines.universal": "12.0.0",
-    "com.weston-wright.scriptable-renderer-helpers-urp": "https://github.com/westonwright/jpeg-compression-urp.git"
+    "com.weston-wright.scriptable-renderer-helpers-urp": "https://github.com/westonwright/scriptable-renderer-helpers-urp.git"
   },
   "keywords": [
     "post-processing",
