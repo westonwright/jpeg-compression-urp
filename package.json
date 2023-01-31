@@ -1,19 +1,22 @@
 {
-  "name": "com.weston-wright.post-processing-urp",
-  "description": "Various Post-Processing effects using renderer features for URp",
-  "version": "1.0.1",
+  "name": "com.weston-wright.jpeg-compression-urp",
+  "description": "Post processing effect that applies accurate JPEG compression to the image",
+  "version": "2.0.0",
   "unity": "2021.3",
   "unityRelease": "3f1",
-  "displayName": "URP Post-Processing",
+  "displayName": "JPEG Compression URP",
   "dependencies": {
     "com.unity.render-pipelines.universal": "12.0.0"
+    "com.weston-wright.scriptable-renderer-helpers-urp": "1.0.0"
   },
   "keywords": [
     "post-processing",
-    "vfx",
-    "screen",
-    "video"
+    "jpeg",
+    "compression",
+    "urp"
   ],
-  "type": "sample",
-  "hideInEditor": false
+  "author": {
+    "name": "Weston Wright",
+    "url": "https://github.com/westonwright"
+  }
 }

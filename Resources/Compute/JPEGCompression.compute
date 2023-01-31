@@ -1,18 +1,22 @@
 // from: https://www.nayuki.io/res/fast-discrete-cosine-transform-algorithms/FastDct8.cs
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CenterValues
-#pragma kernel DecenterValues
 #pragma kernel CDT_Horizontal
 #pragma kernel CDT_Vertical
 #pragma kernel ICDT_Horizontal
 #pragma kernel ICDT_Vertical
+#pragma kernel CenterValues
+#pragma kernel DecenterValues
 #pragma kernel Quantize
 
 
 static const uint THREADS = 1024;
 static const uint SQRT_THREADS = 32;
+// How big a block can be when performing CDT.
+// Current algorithm only supports 8x8 blocks
+// This is standard size for JPEG compression
 static const uint BLOCK_SIZE = 8;
 
+// precomputed values for CDT and ICDT
 static const float S[8] =
 {
     0.353553390593274,
@@ -24,7 +28,7 @@ static const float S[8] =
     0.653281482438188,
     1.28145772387075
 };
-
+// precomputed values for CDT and ICDT
 static const float A[6] =
 {
     0,
@@ -145,41 +149,24 @@ void InverseTransform(float inVec[8], out float outVec[8])
 // with cs.SetTexture
 RWTexture2D<float> _TransformTex;
 
-uint2 _textureSize;
+uint2 _TextureSize;
+uint2 _NumBlocks;
 
-[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
-void CenterValues(uint2 id : SV_DispatchThreadID)
-{
-    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
-        return;
-    
-    //_TransformTex[id.xy] = _TransformTex[id.xy] - 0.5f;
-    _TransformTex[id.xy] = (_TransformTex[id.xy] * 255.0f) -128.0f;
-}
-
-[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
-void DecenterValues(uint2 id : SV_DispatchThreadID)
-{
-    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
-        return;
-    
-    //_TransformTex[id.xy] = _TransformTex[id.xy] + 0.5f;
-    _TransformTex[id.xy] = (_TransformTex[id.xy] + 128.0f) / 255.0f;
-}
-
-uint2 _numBlocks;
-
+// Cosine Discrete Transform. Function is seperable, so it runs in one dimension at a time
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void CDT_Horizontal (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _numBlocks.x || id.y >= _textureSize.y)
+    if (id.x >= _NumBlocks.x || id.y >= _TextureSize.y)
         return;
     
     float inVec[BLOCK_SIZE];
     
     for (uint i = 0; i < BLOCK_SIZE; i++)
     {
-        inVec[i] = _TransformTex[uint2((id.x * BLOCK_SIZE) + i, id.y)];
+        // repeat texture if outside range
+        uint2 xy = uint2((id.x * BLOCK_SIZE) + i, id.y);
+        xy.x = xy.x >= _TextureSize.x ? _TextureSize.x - 1 : xy.x;
+        inVec[i] = _TransformTex[xy];
     }
     
     float outVec[BLOCK_SIZE];
@@ -194,14 +181,17 @@ void CDT_Horizontal (uint2 id : SV_DispatchThreadID)
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void CDT_Vertical (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _textureSize.x || id.y >= _numBlocks.y)
+    if (id.x >= _TextureSize.x || id.y >= _NumBlocks.y)
         return;
     
     float inVec[BLOCK_SIZE];
     
     for (uint i = 0; i < BLOCK_SIZE; i++)
     {
-        inVec[i] = _TransformTex[uint2(id.x, (id.y * BLOCK_SIZE) + i)];
+        // repeat texture if outside range
+        uint2 xy = uint2(id.x, (id.y * BLOCK_SIZE) + i);
+        xy.y = xy.y >= _TextureSize.y ? _TextureSize.y - 1 : xy.y;
+        inVec[i] = _TransformTex[xy];
     }
     
     float outVec[BLOCK_SIZE];
@@ -213,10 +203,11 @@ void CDT_Vertical (uint2 id : SV_DispatchThreadID)
     }
 }
 
+// Inverse Cosine Discrete Transform
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ICDT_Horizontal (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _numBlocks.x || id.y >= _textureSize.y)
+    if (id.x >= _NumBlocks.x || id.y >= _TextureSize.y)
         return;
     
     float inVec[BLOCK_SIZE];
@@ -238,7 +229,7 @@ void ICDT_Horizontal (uint2 id : SV_DispatchThreadID)
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ICDT_Vertical (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _textureSize.x || id.y >= _numBlocks.y)
+    if (id.x >= _TextureSize.x || id.y >= _NumBlocks.y)
         return;
     
     float inVec[BLOCK_SIZE];
@@ -257,17 +248,36 @@ void ICDT_Vertical (uint2 id : SV_DispatchThreadID)
     }
 }
 
+// remaps values from 0 - 1 to -128 - 128
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void CenterValues(uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _TextureSize.x || id.y >= _TextureSize.y)
+        return;
+    
+    _TransformTex[id.xy] = (_TransformTex[id.xy] * 255.0f) - 128.0f;
+}
+
+// remaps values from -128 - 128 to 0 - 1
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void DecenterValues(uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _TextureSize.x || id.y >= _TextureSize.y)
+        return;
+    
+    _TransformTex[id.xy] = (_TransformTex[id.xy] + 128.0f) / 255.0f;
+}
+
 Buffer<int> _QuantizationTable;
 float _QualityFactor;
 
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void Quantize(uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _textureSize.x || id.y >= _textureSize.y)
+    if (id.x >= _TextureSize.x || id.y >= _TextureSize.y)
         return;
     
     uint2 position = id.xy % BLOCK_SIZE;
-    //float quantizationValue = lumaTable[position.x + (position.y * BLOCK_SIZE)];
     float quantizationValue = _QuantizationTable[position.x + (position.y * BLOCK_SIZE)];
     
     quantizationValue = max(round(quantizationValue * _QualityFactor), 1);

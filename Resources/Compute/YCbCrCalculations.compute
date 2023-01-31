@@ -29,42 +29,72 @@ float3 YCbCr2RGB(float Y, float Cb, float Cr)
     return float3(R, G, B);
 }
 
-RWTexture2D<float3> _RBGTex;
-RWTexture2D<float> _YTex;
-RWTexture2D<float> _CbTex;
-RWTexture2D<float> _CrTex;
+Texture2D<float3> _RBGTexIn;
+RWTexture2D<float> _YTexOut;
+RWTexture2D<float> _CbTexOut;
+RWTexture2D<float> _CrTexOut;
 
-uint2 _DownsampleTexSize;
+uint2 _SubsampleTexSize;
 
 uint _CbCrSubsample;
 
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ToYCbCr (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _DownsampleTexSize.x || id.y >= _DownsampleTexSize.y)
+    if (id.x >= _SubsampleTexSize.x || id.y >= _SubsampleTexSize.y)
         return;
     
+    float2 CbCrVal = float2(0, 0);
+    int CbCrDivider = 0;
     for (uint x = 0; x < _CbCrSubsample; x++)
     {
         for (uint y = 0; y < _CbCrSubsample; y++)
         {
-            float YVal = RGB2Y(
-                _RBGTex[(id.xy * _CbCrSubsample) + uint2(x, y)]
-            );
-            _YTex[(id.xy * _CbCrSubsample) + uint2(x, y)] = YVal;
+            float3 RGBVal = _RBGTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)];
+            float YVal = RGB2Y(RGBVal);
+            _YTexOut[(id.xy * _CbCrSubsample) + uint2(x, y)] = YVal;
+            CbCrVal += RGB2CbCR(RGBVal);
+            CbCrDivider++;
         }
     }
-    float2 CbCrVal = RGB2CbCR(
-        _RBGTex[(id.xy * _CbCrSubsample)]
-    );
-    _CbTex[id.xy] = CbCrVal.x;
-    _CrTex[id.xy] = CbCrVal.y;
+    CbCrVal /= float(CbCrDivider);
+    //float2 CbCrVal = RGB2CbCR(_RBGTexIn[(id.xy * _CbCrSubsample)]);
+    _CbTexOut[id.xy] = CbCrVal.x;
+    _CrTexOut[id.xy] = CbCrVal.y;
 }
+
+RWTexture2D<float3> _RBGTexOut;
+Texture2D<float> _YTexIn;
+Texture2D<float> _CbTexIn;
+Texture2D<float> _CrTexIn;
+
+SamplerState sampler_YTexIn;
+SamplerState sampler_CbTexIn;
+SamplerState sampler_CrTexIn;
+
+uint2 _FullTexSize;
 
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ToRGB (uint2 id : SV_DispatchThreadID)
 {
-    if (id.x >= _DownsampleTexSize.x || id.y >= _DownsampleTexSize.y)
+    if (id.x >= _FullTexSize.x || id.y >= _FullTexSize.y)
+        return;
+    
+    float2 uv = id.xy / float2(_FullTexSize);
+    float3 RGBVal = YCbCr2RGB(
+        _YTexIn.SampleLevel(sampler_YTexIn, uv, 0),
+        _CbTexIn.SampleLevel(sampler_CbTexIn, uv, 0),
+        _CrTexIn.SampleLevel(sampler_CrTexIn, uv, 0)
+    );
+    
+    _RBGTexOut[id.xy] = RGBVal;
+}
+
+/*
+[numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
+void ToRGB (uint2 id : SV_DispatchThreadID)
+{
+    if (id.x >= _SubsampleTexSize.x || id.y >= _SubsampleTexSize.y)
         return;
     
     for (uint x = 0; x < _CbCrSubsample; x++)
@@ -80,5 +110,5 @@ void ToRGB (uint2 id : SV_DispatchThreadID)
             _RBGTex[(id.xy * _CbCrSubsample) + uint2(x, y)] = RGBVal;
         }
     }
-
 }
+*/
