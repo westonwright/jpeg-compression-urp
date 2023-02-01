@@ -1,4 +1,4 @@
 # jpeg-compression-urp
 ## Installation
 ### INSTALL THIS FIRST -> https://github.com/westonwright/scriptable-renderer-helpers-urp
-### Add from git URL in Unity Package Manager
+### Add from [Git URL](https://github.com/westonwright/jpeg-compression-urp.git) in Unity Package Manager
