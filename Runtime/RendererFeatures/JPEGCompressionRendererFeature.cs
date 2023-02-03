@@ -247,14 +247,17 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
         }
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
+            //RenderTextureDescriptor cameraTextureDescriptor = renderingData.cameraData.cameraTargetDescriptor;
         }
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             m_FullTexSize.x = Mathf.CeilToInt(cameraTextureDescriptor.width / (float)m_CurrentSettings.DownsampleRatio);
             m_FullTexSize.y = Mathf.CeilToInt(cameraTextureDescriptor.height / (float)m_CurrentSettings.DownsampleRatio);
+
             m_SubsampleTexSize.x = Mathf.CeilToInt(m_FullTexSize.x / (float)m_CurrentSettings.ChromaSubsampleRatio);
             m_SubsampleTexSize.y = Mathf.CeilToInt(m_FullTexSize.y / (float)m_CurrentSettings.ChromaSubsampleRatio);
+
 
             m_NumberOfBlocksFull.x = Mathf.CeilToInt(m_FullTexSize.x / 8.0f);
             m_NumberOfBlocksFull.y = Mathf.CeilToInt(m_FullTexSize.y / 8.0f);
@@ -322,6 +325,7 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
                     m_CbTextureTarget,
                     m_CrTextureTarget,
                     m_SubsampleTexSize,
+                    m_FullTexSize,
                     m_CurrentSettings.ChromaSubsampleRatio);
 
                 // compress the Y (luma) texture
@@ -372,9 +376,11 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
             RenderTargetIdentifier cbTarget, 
             RenderTargetIdentifier crTarget,
             Vector2Int subsampleTextureSize,
+            Vector2Int fullTextureSize,
             int subsampleRatio)
         {
             RenderPassHelper.SetComputeIntParamsVector(cmd, m_YCbCrCompute, "_SubsampleTexSize", subsampleTextureSize);
+            RenderPassHelper.SetComputeIntParamsVector(cmd, m_YCbCrCompute, "_FullTexSize", fullTextureSize);
             cmd.SetComputeIntParam(m_YCbCrCompute, "_CbCrSubsample", subsampleRatio);
 
             cmd.SetComputeTextureParam(m_YCbCrCompute, (int)YCbCrKernels.ToYCbCr, "_RBGTexIn", rgbTarget);
@@ -397,7 +403,6 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
             RenderTargetIdentifier crTarget,
             Vector2Int fullTextureSize)
         {
-            //RenderPassHelper.SetComputeIntParamsVector(cmd, m_YCbCrCompute, "_SubsampleTexSize", subsampleTextureSize);
             RenderPassHelper.SetComputeIntParamsVector(cmd, m_YCbCrCompute, "_FullTexSize", fullTextureSize);
 
             cmd.SetComputeTextureParam(m_YCbCrCompute, (int)YCbCrKernels.ToRGB, "_RBGTexOut", rgbTarget);

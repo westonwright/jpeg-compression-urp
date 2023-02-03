@@ -35,6 +35,7 @@ RWTexture2D<float> _CbTexOut;
 RWTexture2D<float> _CrTexOut;
 
 uint2 _SubsampleTexSize;
+uint2 _FullTexSize;
 
 uint _CbCrSubsample;
 
@@ -46,11 +47,14 @@ void ToYCbCr (uint2 id : SV_DispatchThreadID)
     
     float2 CbCrVal = float2(0, 0);
     int CbCrDivider = 0;
+
     for (uint x = 0; x < _CbCrSubsample; x++)
     {
         for (uint y = 0; y < _CbCrSubsample; y++)
         {
-            float3 RGBVal = saturate(_RBGTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)]);
+            //float3 RGBVal = saturate(_RBGTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)]);
+            // fix edge sampling
+            float3 RGBVal = saturate(_RBGTexIn[min((id.xy * _CbCrSubsample) + uint2(x, y), _FullTexSize - 1)]);
             float YVal = RGB2Y(RGBVal);
             _YTexOut[(id.xy * _CbCrSubsample) + uint2(x, y)] = YVal;
             CbCrVal += RGB2CbCR(RGBVal);
@@ -72,7 +76,6 @@ SamplerState sampler_YTexIn;
 SamplerState sampler_CbTexIn;
 SamplerState sampler_CrTexIn;
 
-uint2 _FullTexSize;
 
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ToRGB (uint2 id : SV_DispatchThreadID)
@@ -80,7 +83,7 @@ void ToRGB (uint2 id : SV_DispatchThreadID)
     if (id.x >= _FullTexSize.x || id.y >= _FullTexSize.y)
         return;
     
-    float2 uv = id.xy / float2(_FullTexSize);
+    float2 uv = id.xy / (float2(_FullTexSize) - float2(0.5f, 0.5f));
     float3 RGBVal = YCbCr2RGB(
         _YTexIn.SampleLevel(sampler_YTexIn, uv, 0),
         _CbTexIn.SampleLevel(sampler_CbTexIn, uv, 0),
@@ -90,6 +93,7 @@ void ToRGB (uint2 id : SV_DispatchThreadID)
     _RBGTexOut[id.xy] = saturate(RGBVal);
 }
 
+// Original method couldnt support different sampeling methods
 /*
 [numthreads(SQRT_THREADS, SQRT_THREADS, 1)]
 void ToRGB (uint2 id : SV_DispatchThreadID)
@@ -102,12 +106,12 @@ void ToRGB (uint2 id : SV_DispatchThreadID)
         for (uint y = 0; y < _CbCrSubsample; y++)
         {
             float3 RGBVal = YCbCr2RGB(
-                _YTex[(id.xy * _CbCrSubsample) + uint2(x, y)],
-                _CbTex[id.xy],
-                _CrTex[id.xy]
+                _YTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)],
+                _CbTexIn[id.xy],
+                _CrTexIn[id.xy]
             );
             
-            _RBGTex[(id.xy * _CbCrSubsample) + uint2(x, y)] = RGBVal;
+            _RBGTexOut[(id.xy * _CbCrSubsample) + uint2(x, y)] = RGBVal;
         }
     }
 }
