@@ -198,10 +198,10 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             RenderTextureDescriptor cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-            m_FullTexSize.x = cameraTargetDescriptor.width / m_CurrentSettings.DownsampleRatio;
-            m_FullTexSize.y = cameraTargetDescriptor.height / m_CurrentSettings.DownsampleRatio;
-            m_SubsampleTexSize.x = m_FullTexSize.x / m_CurrentSettings.ChromaSubsampleRatio;
-            m_SubsampleTexSize.y = m_FullTexSize.y / m_CurrentSettings.ChromaSubsampleRatio;
+            m_FullTexSize.x = Mathf.CeilToInt(cameraTargetDescriptor.width / (float)m_CurrentSettings.DownsampleRatio);
+            m_FullTexSize.y = Mathf.CeilToInt(cameraTargetDescriptor.height / (float)m_CurrentSettings.DownsampleRatio);
+            m_SubsampleTexSize.x = Mathf.CeilToInt(m_FullTexSize.x / (float)m_CurrentSettings.ChromaSubsampleRatio);
+            m_SubsampleTexSize.y = Mathf.CeilToInt(m_FullTexSize.y / (float)m_CurrentSettings.ChromaSubsampleRatio);
 
             m_NumberOfBlocksFull.x = Mathf.CeilToInt(m_FullTexSize.x / 8.0f);
             m_NumberOfBlocksFull.y = Mathf.CeilToInt(m_FullTexSize.y / 8.0f);
