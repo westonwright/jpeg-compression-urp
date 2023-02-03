@@ -50,7 +50,7 @@ void ToYCbCr (uint2 id : SV_DispatchThreadID)
     {
         for (uint y = 0; y < _CbCrSubsample; y++)
         {
-            float3 RGBVal = _RBGTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)];
+            float3 RGBVal = saturate(_RBGTexIn[(id.xy * _CbCrSubsample) + uint2(x, y)]);
             float YVal = RGB2Y(RGBVal);
             _YTexOut[(id.xy * _CbCrSubsample) + uint2(x, y)] = YVal;
             CbCrVal += RGB2CbCR(RGBVal);
@@ -87,7 +87,7 @@ void ToRGB (uint2 id : SV_DispatchThreadID)
         _CrTexIn.SampleLevel(sampler_CrTexIn, uv, 0)
     );
     
-    _RBGTexOut[id.xy] = RGBVal;
+    _RBGTexOut[id.xy] = saturate(RGBVal);
 }
 
 /*
