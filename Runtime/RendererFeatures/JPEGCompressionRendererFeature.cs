@@ -8,28 +8,66 @@ using UnityEngine.Rendering.Universal;
 [Serializable]
 class JPEGCompressionSettings
 {
+    public JPEGCompressionSettings() { }
+    public JPEGCompressionSettings(JPEGCompressionSettings other)
+    {
+        _DownsampleRatio = other.DownsampleRatio;
+        _DownsampleFilterMode = other.DownsampleFilterMode;
+        _ChromaSubsampleRatio = other.ChromaSubsampleRatio;
+        _SubsampleFilterMode = other.SubsampleFilterMode;
+        _QualityFactor = other.QualityFactor;
+        _ProfilerTag = other.ProfilerTag;
+        _RenderPassEvent = other.RenderPassEvent;
+    }
     [SerializeField, Range(1, 8)]
     private int _DownsampleRatio = 1;
-    public int DownsampleRatio { get => _DownsampleRatio; }
+    public int DownsampleRatio 
+    { 
+        get => _DownsampleRatio; 
+        set => _DownsampleRatio = Mathf.Max(value, 1); 
+    }
     [SerializeField]
     private FilterMode _DownsampleFilterMode = FilterMode.Point;
-    public FilterMode DownsampleFilterMode { get => _DownsampleFilterMode; }
+    public FilterMode DownsampleFilterMode
+    {
+        get => _DownsampleFilterMode; 
+        set => _DownsampleFilterMode = value;
+    }
     [SerializeField, Range(1, 8)]
     private int _ChromaSubsampleRatio = 2;
-    public int ChromaSubsampleRatio { get => _ChromaSubsampleRatio; }
+    public int ChromaSubsampleRatio 
+    {
+        get => _ChromaSubsampleRatio; 
+        set => _ChromaSubsampleRatio = Mathf.Max(value, 1); 
+    }
     [SerializeField]
     private FilterMode _SubsampleFilterMode = FilterMode.Point;
-    public FilterMode SubsampleFilterMode { get => _SubsampleFilterMode; }
-    [SerializeField, Range(0.0f, 12.0f)]
+    public FilterMode SubsampleFilterMode 
+    { 
+        get => _SubsampleFilterMode; 
+        set => _SubsampleFilterMode = value;
+    }
+    [SerializeField, Range(0.0f, 10.0f)]
     private float _QualityFactor = 1;
-    public float QualityFactor { get => Mathf.Pow(_QualityFactor, 2); }
-
-    [SerializeField]
-    private string _ProfilerTag = "JPEG Compression Renderer Feature";
-    public string ProfilerTag { get => _ProfilerTag; }
+    public float QualityFactor 
+    { 
+        get => _QualityFactor;
+        set => _QualityFactor = Mathf.Abs(value);
+    }
     [SerializeField]
     private RenderPassEvent _RenderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
-    public RenderPassEvent RenderPassEvent { get => _RenderPassEvent; }
+    public RenderPassEvent RenderPassEvent
+    { 
+        get => _RenderPassEvent;
+        set => _RenderPassEvent = value;
+    }
+    [SerializeField]
+    private string _ProfilerTag = "JPEG Compression Renderer Feature";
+    public string ProfilerTag
+    {
+        get => _ProfilerTag;
+        set => _ProfilerTag = value;
+    }
 }
 
 [DisallowMultipleRendererFeature]
@@ -54,6 +92,16 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
     private const string k_ComputePath = "Compute/";
     private const string k_CompressionComputeName = "JPEGCompression";
     private const string k_YCbCrComputeComputeName = "YCbCrCalculations";
+
+    // Update Settings External
+    public JPEGCompressionSettings GetSettings()
+    {
+        return new JPEGCompressionSettings(m_Settings);
+    }
+    public void SetSettings(JPEGCompressionSettings settings)
+    {
+        m_Settings = settings;
+    }
 
     public override void Create()
     {
@@ -112,6 +160,9 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
         private ComputeBuffer m_LumaQuantizeBuffer;
         private ComputeBuffer m_ChromaQuantizeBuffer;
         private JPEGCompressionSettings m_CurrentSettings = new JPEGCompressionSettings();
+
+        // Constants
+        private const string k_PassProfilerTag = "JPEG Compression Pass";
 
         // Statics
         private static readonly int s_RGBTextureId = Shader.PropertyToID("_JPEG_RGBTex");
@@ -181,14 +232,13 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
             }
         }
 
-
         public bool Setup(JPEGCompressionSettings settings, ScriptableRenderer renderer)
         {
             m_CurrentSettings = settings;
             m_Renderer = renderer;
 
-            m_ProfilingSampler = new ProfilingSampler(m_CurrentSettings.ProfilerTag);
-            renderPassEvent = settings.RenderPassEvent;
+            m_ProfilingSampler = new ProfilingSampler(k_PassProfilerTag);
+            renderPassEvent = m_CurrentSettings.RenderPassEvent;
             CreateBuffers();
             ConfigureInput(ScriptableRenderPassInput.Color);
 
@@ -197,9 +247,12 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
         }
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
-            RenderTextureDescriptor cameraTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-            m_FullTexSize.x = Mathf.CeilToInt(cameraTargetDescriptor.width / (float)m_CurrentSettings.DownsampleRatio);
-            m_FullTexSize.y = Mathf.CeilToInt(cameraTargetDescriptor.height / (float)m_CurrentSettings.DownsampleRatio);
+        }
+
+        public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
+        {
+            m_FullTexSize.x = Mathf.CeilToInt(cameraTextureDescriptor.width / (float)m_CurrentSettings.DownsampleRatio);
+            m_FullTexSize.y = Mathf.CeilToInt(cameraTextureDescriptor.height / (float)m_CurrentSettings.DownsampleRatio);
             m_SubsampleTexSize.x = Mathf.CeilToInt(m_FullTexSize.x / (float)m_CurrentSettings.ChromaSubsampleRatio);
             m_SubsampleTexSize.y = Mathf.CeilToInt(m_FullTexSize.y / (float)m_CurrentSettings.ChromaSubsampleRatio);
 
@@ -211,7 +264,7 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
             RenderTextureDescriptor rgbDescriptor = new RenderTextureDescriptor(
             m_FullTexSize.x,
             m_FullTexSize.y,
-            cameraTargetDescriptor.colorFormat
+            cameraTextureDescriptor.colorFormat
             );
             rgbDescriptor.msaaSamples = 1;
             rgbDescriptor.enableRandomWrite = true;
@@ -255,7 +308,7 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // fetch a command buffer to use
-            CommandBuffer cmd = CommandBufferPool.Get();
+            CommandBuffer cmd = CommandBufferPool.Get(m_CurrentSettings.ProfilerTag);
             using (new ProfilingScope(cmd, m_ProfilingSampler))
             {
                 // where the render pass does its work
@@ -397,7 +450,7 @@ class JPEGCompressionRendererFeature : ScriptableRendererFeature
                 numberOfBlocks.y);
 
             // quantize
-            cmd.SetComputeFloatParam(m_JPEGCompute, "_QualityFactor", qualityFactor);
+            cmd.SetComputeFloatParam(m_JPEGCompute, "_QualityFactor", Mathf.Pow(qualityFactor, 2));
             cmd.SetComputeTextureParam(m_JPEGCompute, (int)JPEGKernels.Quantize, "_TransformTex", renderTarget);
             cmd.SetComputeBufferParam(m_JPEGCompute, (int)JPEGKernels.Quantize, "_QuantizationTable", quantizationBuffer);
 
